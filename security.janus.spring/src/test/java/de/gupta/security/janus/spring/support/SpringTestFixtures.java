@@ -28,18 +28,28 @@ public final class SpringTestFixtures
 {
 	public static SignupCommand signupCommand()
 	{
+		return signupCommand("local");
+	}
+
+	public static SigninCommand signinCommand()
+	{
+		return signinCommand("local");
+	}
+
+	public static SignupCommand signupCommand(final String requestedProvider)
+	{
 		return SignupCommand.of("ada@example.com",
 				"correct horse battery staple",
 				SignupProfileAttributes.of(Optional.of("ada@example.com"),
 						Optional.of("Ada"),
 						Optional.of("Lovelace"),
 						Optional.of("Ada Lovelace")),
-				"local");
+				requestedProvider);
 	}
 
-	public static SigninCommand signinCommand()
+	public static SigninCommand signinCommand(final String requestedProvider)
 	{
-		return SigninCommand.of("ada@example.com", "correct horse battery staple", "local");
+		return SigninCommand.of("ada@example.com", "correct horse battery staple", requestedProvider);
 	}
 
 	public static ProviderIdentity providerIdentity(final String source)

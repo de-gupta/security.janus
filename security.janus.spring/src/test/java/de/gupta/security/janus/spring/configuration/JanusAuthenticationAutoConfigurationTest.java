@@ -13,6 +13,8 @@ import de.gupta.security.janus.core.domain.model.signin.SigninSuccess;
 import de.gupta.security.janus.core.domain.model.signup.SignupFailure;
 import de.gupta.security.janus.core.domain.model.signup.SignupFailureReason;
 import de.gupta.security.janus.core.domain.model.signup.SignupSuccess;
+import de.gupta.security.janus.idp.implementation.keycloak.KeycloakIdentityProviderConfiguration;
+import de.gupta.security.janus.spring.support.SpringKeycloakStubServer;
 import de.gupta.security.janus.spring.support.SpringTestFixtures;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,6 +49,34 @@ class JanusAuthenticationAutoConfigurationTest
 			                               .signup(SpringTestFixtures.signupCommand()))
 								 .isInstanceOf(SignupSuccess.class);
 					 });
+	}
+
+	@Test
+	@DisplayName("should create AuthenticationService from supported identity provider configuration")
+	void shouldCreateAuthenticationServiceFromSupportedIdentityProviderConfiguration() throws Exception
+	{
+		try (SpringKeycloakStubServer keycloak = new SpringKeycloakStubServer())
+		{
+			keycloak.stubAdminToken("admin-token");
+			keycloak.stubCreateUser("keycloak-user-1");
+			keycloak.stubResetPassword("keycloak-user-1");
+			keycloak.stubPasswordGrantSuccess("keycloak-user-1", "ada@example.com");
+
+			contextRunner.withUserConfiguration(LocalPortsConfiguration.class)
+			             .withBean(JanusSupportedIdentityProvider.class, () -> JanusSupportedIdentityProvider.KEYCLOAK)
+			             .withBean(KeycloakIdentityProviderConfiguration.class,
+								 () -> keycloak.configuration(java.time.Clock.systemUTC()))
+			             .run(context ->
+						 {
+							 assertThat(context).hasSingleBean(AuthenticationService.class);
+							 assertThat(context.getBean(AuthenticationService.class)
+				                               .signup(SpringTestFixtures.signupCommand("keycloak")))
+									 .isInstanceOf(SignupSuccess.class)
+						             .extracting(SignupSuccess.class::cast)
+						             .satisfies(signupSuccess -> assertThat(signupSuccess.providerIdentity().provider())
+											 .isEqualTo("keycloak"));
+						 });
+		}
 	}
 
 	@Test
@@ -209,6 +239,20 @@ class JanusAuthenticationAutoConfigurationTest
 						 assertThat(context.getStartupFailure())
 								 .hasMessageContaining(
 										 "must provide both Function<SignupProviderCommand, ProviderSignupResult> and Function<SigninProviderCommand, ProviderSigninResult>");
+					 });
+	}
+
+	@Test
+	@DisplayName("should fail clearly when a supported identity provider is selected without provider configuration")
+	void shouldFailClearlyWhenASupportedIdentityProviderIsSelectedWithoutProviderConfiguration()
+	{
+		contextRunner.withUserConfiguration(LocalPortsConfiguration.class)
+		             .withBean(JanusSupportedIdentityProvider.class, () -> JanusSupportedIdentityProvider.KEYCLOAK)
+		             .run(context ->
+					 {
+						 assertThat(context).hasFailed();
+						 assertThat(context.getStartupFailure())
+								 .hasMessageContaining("KeycloakIdentityProviderConfiguration");
 					 });
 	}
 
@@ -579,6 +623,22 @@ class JanusAuthenticationAutoConfigurationTest
 		Function<LocalAccountCreationCommand, LocalAccountCreationResult> localAccountCreationFunction()
 		{
 			return _ -> new SpringTestFixtures.RecordingLocalAccountCreationPort().response;
+		}
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class LocalPortsConfiguration
+	{
+		@Bean
+		LocalAccountLookupPort localAccountLookupPort()
+		{
+			return new SpringTestFixtures.RecordingLocalAccountLookupPort();
+		}
+
+		@Bean
+		LocalAccountCreationPort localAccountCreationPort()
+		{
+			return new SpringTestFixtures.RecordingLocalAccountCreationPort();
 		}
 	}
 }

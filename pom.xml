@@ -18,6 +18,7 @@
     <modules>
         <module>security.janus.core</module>
         <module>security.janus.spring</module>
+        <module>security.janus.idp.implementation</module>
     </modules>
 
     <properties>

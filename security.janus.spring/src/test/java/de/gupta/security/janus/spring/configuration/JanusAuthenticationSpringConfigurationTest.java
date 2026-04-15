@@ -14,6 +14,8 @@ import de.gupta.security.janus.core.domain.model.signin.SigninFailure;
 import de.gupta.security.janus.core.domain.model.signin.SigninFailureReason;
 import de.gupta.security.janus.core.domain.model.signin.SigninSuccess;
 import de.gupta.security.janus.core.domain.model.signup.SignupSuccess;
+import de.gupta.security.janus.idp.implementation.keycloak.KeycloakIdentityProviderConfiguration;
+import de.gupta.security.janus.spring.support.SpringKeycloakStubServer;
 import de.gupta.security.janus.spring.support.SpringTestFixtures;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -103,6 +105,46 @@ class JanusAuthenticationSpringConfigurationTest
 	}
 
 	@Test
+	@DisplayName("should create AuthenticationService from supported identity provider configuration")
+	void shouldCreateAuthenticationServiceFromSupportedIdentityProviderConfiguration() throws Exception
+	{
+		try (SpringKeycloakStubServer keycloak = new SpringKeycloakStubServer();
+		     AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext())
+		{
+			keycloak.stubAdminToken("admin-token");
+			keycloak.stubCreateUser("keycloak-user-1");
+			keycloak.stubResetPassword("keycloak-user-1");
+			keycloak.stubPasswordGrantSuccess("keycloak-user-1", "ada@example.com");
+
+			context.register(JanusAuthenticationSpringConfiguration.class);
+			context.registerBean(JanusSupportedIdentityProvider.class, () -> JanusSupportedIdentityProvider.KEYCLOAK);
+			context.registerBean(KeycloakIdentityProviderConfiguration.class,
+					() -> keycloak.configuration(Clock.fixed(Instant.parse("2026-04-15T12:00:00Z"), ZoneOffset.UTC)));
+			context.registerBean(SpringTestFixtures.RecordingLocalAccountLookupPort.class,
+					SpringTestFixtures.RecordingLocalAccountLookupPort::new);
+			context.registerBean(SpringTestFixtures.RecordingLocalAccountCreationPort.class,
+					SpringTestFixtures.RecordingLocalAccountCreationPort::new);
+			context.refresh();
+
+			final AuthenticationService authenticationService = context.getBean(AuthenticationService.class);
+
+			assertThat(authenticationService.signup(SpringTestFixtures.signupCommand("keycloak")))
+					.isInstanceOf(SignupSuccess.class)
+					.extracting(SignupSuccess.class::cast)
+					.satisfies(signupSuccess ->
+					{
+						assertThat(signupSuccess.providerIdentity().provider()).isEqualTo("keycloak");
+						assertThat(signupSuccess.providerIdentity().externalSubject()).isEqualTo("keycloak-user-1");
+						assertThat(signupSuccess.providerIdentity().metadata()).containsEntry("realm", "janus");
+					});
+			assertThat(authenticationService.signin(SpringTestFixtures.signinCommand("keycloak")))
+					.isInstanceOf(SigninSuccess.class);
+			assertThat(keycloak.lastCreateUserBody()).contains("\"username\":\"ada@example.com\"");
+			assertThat(keycloak.lastPasswordGrantBody()).contains("client_id=janus-app");
+		}
+	}
+
+	@Test
 	@DisplayName("should use custom AuthenticationPolicy when present")
 	void shouldUseCustomAuthenticationPolicyWhenPresent()
 	{
@@ -187,6 +229,34 @@ class JanusAuthenticationSpringConfigurationTest
 			assertThatThrownBy(context::refresh)
 					.isInstanceOf(BeanCreationException.class)
 					.hasMessageContaining("LocalAccountCreationPort");
+		}
+	}
+
+	@Test
+	@DisplayName("should prefer explicit IdentityProviderPort over supported identity provider configuration")
+	void shouldPreferExplicitIdentityProviderPortOverSupportedIdentityProviderConfiguration()
+	{
+		try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext())
+		{
+			context.register(JanusAuthenticationSpringConfiguration.class, ExplicitPortsConfiguration.class);
+			context.registerBean(JanusSupportedIdentityProvider.class, () -> JanusSupportedIdentityProvider.KEYCLOAK);
+			context.registerBean(KeycloakIdentityProviderConfiguration.class, () ->
+					KeycloakIdentityProviderConfiguration.of("http://127.0.0.1:65535",
+							"janus",
+							"janus-app",
+							"janus-admin"));
+			context.refresh();
+
+			final AuthenticationService authenticationService = context.getBean(AuthenticationService.class);
+			final SpringTestFixtures.RecordingIdentityProviderPort identityProviderPort =
+					context.getBean(SpringTestFixtures.RecordingIdentityProviderPort.class);
+
+			assertThat(authenticationService.signup(SpringTestFixtures.signupCommand()))
+					.isInstanceOf(SignupSuccess.class)
+					.extracting(SignupSuccess.class::cast)
+					.satisfies(signupSuccess -> assertThat(signupSuccess.providerIdentity().metadata())
+							.containsEntry("source", "explicit-provider"));
+			assertThat(identityProviderPort.signupCalls).isEqualTo(1);
 		}
 	}
 

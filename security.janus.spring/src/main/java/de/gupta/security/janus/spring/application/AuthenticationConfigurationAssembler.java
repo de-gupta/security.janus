@@ -48,10 +48,13 @@ public final class AuthenticationConfigurationAssembler
 			String.class);
 
 	private final SpringBeanLookup beanLookup;
+	private final SupportedIdentityProviderPortFactory supportedIdentityProviderPortFactory;
 
 	public static AuthenticationConfigurationAssembler create(final ListableBeanFactory beanFactory)
 	{
-		return new AuthenticationConfigurationAssembler(new SpringBeanLookup(beanFactory));
+		final SpringBeanLookup beanLookup = new SpringBeanLookup(beanFactory);
+		return new AuthenticationConfigurationAssembler(beanLookup,
+				new SupportedIdentityProviderPortFactory(beanLookup));
 	}
 
 	public AuthenticationConfiguration assembleOrThrow()
@@ -150,8 +153,7 @@ public final class AuthenticationConfigurationAssembler
 				signinFunction instanceof Resolved<Function<SigninProviderCommand, ProviderSigninResult>>;
 		if (!hasSignup && !hasSignin)
 		{
-			return ResolutionResult.missing(missingRequiredCollaboratorMessage(IDENTITY_PROVIDER_ROLE,
-					"exactly one IdentityProviderPort bean or both Function<SignupProviderCommand, ProviderSignupResult> and Function<SigninProviderCommand, ProviderSigninResult> beans"));
+			return resolveConfiguredIdentityProviderPort();
 		}
 		if (!hasSignup || !hasSignin)
 		{
@@ -162,6 +164,27 @@ public final class AuthenticationConfigurationAssembler
 		return ResolutionResult.resolved(FunctionalBeanAdapters.identityProvider(
 				((Resolved<Function<SignupProviderCommand, ProviderSignupResult>>) signupFunction).value(),
 				((Resolved<Function<SigninProviderCommand, ProviderSigninResult>>) signinFunction).value()));
+	}
+
+	private ResolutionResult<IdentityProviderPort> resolveConfiguredIdentityProviderPort()
+	{
+		final ResolutionResult<IdentityProviderPort> configuredPort = supportedIdentityProviderPortFactory.resolve();
+		if (configuredPort instanceof Resolved<IdentityProviderPort>)
+		{
+			return configuredPort;
+		}
+		if (isAmbiguous(configuredPort))
+		{
+			return configuredPort;
+		}
+		if (configuredPort instanceof Unresolved<IdentityProviderPort>(ResolutionFailure failure) &&
+				!"No supported identity provider selection bean found.".equals(failure.message()))
+		{
+			return new Unresolved<>(failure);
+		}
+
+		return ResolutionResult.missing(missingRequiredCollaboratorMessage(IDENTITY_PROVIDER_ROLE,
+				"exactly one IdentityProviderPort bean, both Function<SignupProviderCommand, ProviderSignupResult> and Function<SigninProviderCommand, ProviderSigninResult> beans, or one JanusSupportedIdentityProvider bean with its provider-specific configuration"));
 	}
 
 	private ResolutionResult<LocalAccountLookupPort> resolveLocalAccountLookupPort()
@@ -391,8 +414,10 @@ public final class AuthenticationConfigurationAssembler
 		return "Multiple beans found for '" + role + "': " + beanNames + ". " + guidance;
 	}
 
-	private AuthenticationConfigurationAssembler(final SpringBeanLookup beanLookup)
+	private AuthenticationConfigurationAssembler(final SpringBeanLookup beanLookup,
+	                                             final SupportedIdentityProviderPortFactory supportedIdentityProviderPortFactory)
 	{
 		this.beanLookup = beanLookup;
+		this.supportedIdentityProviderPortFactory = supportedIdentityProviderPortFactory;
 	}
 }

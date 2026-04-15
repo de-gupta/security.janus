@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-    <configuration default="false" name="all.tests" type="JUnit" factoryName="JUnit">
-        <module name="security.janus.spring"/>
+    <configuration default="false" name="idp.implementation.tests" type="JUnit" factoryName="JUnit">
+        <module name="security.janus.idp.implementation"/>
         <extension name="net.ashald.envfile">
             <option name="IS_ENABLED" value="false"/>
             <option name="IS_SUBST" value="false"/>
@@ -11,14 +11,12 @@
                 <ENTRY IS_ENABLED="true" PARSER="runconfig" IS_EXECUTABLE="false"/>
             </ENTRIES>
         </extension>
+        <option name="PACKAGE_NAME" value=""/>
         <option name="MAIN_CLASS_NAME" value=""/>
         <option name="METHOD_NAME" value=""/>
-        <option name="TEST_OBJECT" value="directory"/>
-        <dir value="$PROJECT_DIR$/security.janus.spring/src/test/java"/>
+        <option name="TEST_OBJECT" value="package"/>
         <method v="2">
             <option name="Make" enabled="true"/>
-            <option name="RunConfigurationTask" enabled="true" run_configuration_name="core.tests" run_configuration_type="JUnit"/>
-            <option name="RunConfigurationTask" enabled="true" run_configuration_name="idp.implementation.tests" run_configuration_type="JUnit"/>
         </method>
     </configuration>
 </component>
