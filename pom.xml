@@ -16,7 +16,7 @@
     <url>https://github.com/de-gupta/security.janus.git</url>
 
     <properties>
-        <security.dependencies.bom.version>1.0.0</security.dependencies.bom.version>
+        <security.dependencies.bom.version>1.1.0</security.dependencies.bom.version>
     </properties>
 
     <dependencyManagement>
@@ -39,7 +39,6 @@
         <dependency>
             <groupId>io.github.de-gupta</groupId>
             <artifactId>athena</artifactId>
-            <version>0.5.1</version>
         </dependency>
 
         <dependency>
