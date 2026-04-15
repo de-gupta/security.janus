@@ -594,6 +594,40 @@ What consumers get:
 - a normal Janus `AuthenticationService` bean
 - no need to write a custom Keycloak `IdentityProviderPort` adapter
 
+#### Keycloak Assumptions
+
+The built-in Keycloak adapter assumes a specific Keycloak setup.
+
+Consumers must have:
+
+- a reachable Keycloak server URL
+- a realm for the application users
+- a user-facing Keycloak client for signin
+- an admin-capable Keycloak client for user creation and password setup
+
+More specifically:
+
+- the configured user client id and optional secret are used for signin
+- the configured admin client id and optional secret are used for admin token acquisition, user creation, and password
+  setup
+- the admin client must have sufficient privileges to create users and reset passwords in the configured realm
+- the signin client must allow the credential-based signin flow this adapter uses
+- the Janus command `requestedProvider` must match the configured provider alias, which defaults to `"keycloak"`
+
+Current scope of the built-in Keycloak adapter:
+
+- supported well:
+  - signup with raw secret
+  - signin with raw secret
+  - provider identity + provider session mapping
+- not first-class in this release:
+  - browser redirect / authorization-code login
+  - password reset
+  - magic link
+  - MFA
+  - logout
+  - email verification
+
 Then inject:
 
 ```java
