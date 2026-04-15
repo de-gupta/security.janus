@@ -105,8 +105,8 @@ class JanusAuthenticationSpringConfigurationTest
 	}
 
 	@Test
-	@DisplayName("should create AuthenticationService from supported identity provider configuration")
-	void shouldCreateAuthenticationServiceFromSupportedIdentityProviderConfiguration() throws Exception
+	@DisplayName("should create AuthenticationService from built-in identity provider configuration")
+	void shouldCreateAuthenticationServiceFromBuiltInIdentityProviderConfiguration() throws Exception
 	{
 		try (SpringKeycloakStubServer keycloak = new SpringKeycloakStubServer();
 		     AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext())
@@ -117,7 +117,6 @@ class JanusAuthenticationSpringConfigurationTest
 			keycloak.stubPasswordGrantSuccess("keycloak-user-1", "ada@example.com");
 
 			context.register(JanusAuthenticationSpringConfiguration.class);
-			context.registerBean(JanusSupportedIdentityProvider.class, () -> JanusSupportedIdentityProvider.KEYCLOAK);
 			context.registerBean(KeycloakIdentityProviderConfiguration.class,
 					() -> keycloak.configuration(Clock.fixed(Instant.parse("2026-04-15T12:00:00Z"), ZoneOffset.UTC)));
 			context.registerBean(SpringTestFixtures.RecordingLocalAccountLookupPort.class,
@@ -233,13 +232,12 @@ class JanusAuthenticationSpringConfigurationTest
 	}
 
 	@Test
-	@DisplayName("should prefer explicit IdentityProviderPort over supported identity provider configuration")
-	void shouldPreferExplicitIdentityProviderPortOverSupportedIdentityProviderConfiguration()
+	@DisplayName("should prefer explicit IdentityProviderPort over built-in identity provider configuration")
+	void shouldPreferExplicitIdentityProviderPortOverBuiltInIdentityProviderConfiguration()
 	{
 		try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext())
 		{
 			context.register(JanusAuthenticationSpringConfiguration.class, ExplicitPortsConfiguration.class);
-			context.registerBean(JanusSupportedIdentityProvider.class, () -> JanusSupportedIdentityProvider.KEYCLOAK);
 			context.registerBean(KeycloakIdentityProviderConfiguration.class, () ->
 					KeycloakIdentityProviderConfiguration.of("http://127.0.0.1:65535",
 							"janus",

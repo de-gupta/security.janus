@@ -7,7 +7,7 @@ import de.gupta.security.janus.core.adapter.provider.SignupProviderCommand;
 import de.gupta.security.janus.core.domain.model.local.LocalAccountCreationResult;
 import de.gupta.security.janus.core.domain.model.provider.ProviderSigninResult;
 import de.gupta.security.janus.core.domain.model.provider.ProviderSignupResult;
-import de.gupta.security.janus.spring.configuration.JanusSupportedIdentityProvider;
+import de.gupta.security.janus.idp.implementation.BuiltInIdentityProviderConfiguration;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.core.ResolvableType;
 
@@ -50,7 +50,7 @@ public final class AuthenticationConfigurationCandidateProbe
 		return lookup.hasAnyBean(IdentityProviderPort.class) ||
 				lookup.hasAnyBean(SIGNUP_PROVIDER_FUNCTION) ||
 				lookup.hasAnyBean(SIGNIN_PROVIDER_FUNCTION) ||
-				lookup.hasAnyBean(JanusSupportedIdentityProvider.class);
+				lookup.hasAnyBean(BuiltInIdentityProviderConfiguration.class);
 	}
 
 	private static boolean hasLookupCandidate(final SpringBeanLookup lookup)

@@ -1,5 +1,6 @@
 module de.gupta.security.janus.idp.implementation
 {
+	exports de.gupta.security.janus.idp.implementation;
 	exports de.gupta.security.janus.idp.implementation.keycloak;
 
 	requires transitive de.gupta.security.janus.core;

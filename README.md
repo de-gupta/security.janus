@@ -13,9 +13,10 @@ You bring your own local account store and your own identity provider implementa
 
 ## Modules
 
-Janus currently ships as two modules:
+Janus currently ships as three modules:
 
 - `security.janus.core`: framework-agnostic orchestration and public auth models
+- `security.janus.idp.implementation`: built-in IdP adapter implementations such as Keycloak
 - `security.janus.spring`: Spring / Spring Boot wiring on top of the core module
 
 Use the core module directly if you want full manual assembly. Use the Spring module if you want Janus assembled from
@@ -49,7 +50,14 @@ SigninResult signinResult = service.signin(signinCommand);
 
 ### Spring / Spring Boot
 
-Add `security.janus.spring` and provide the required beans.
+Add `security.janus.spring`.
+
+Then choose one provider integration style:
+
+- provide your own `IdentityProviderPort` bean
+- provide provider functions
+- or provide one built-in provider configuration bean such as `KeycloakIdentityProviderConfiguration` and let Janus
+  create the adapter
 
 If you use Spring Boot, Janus auto-configures an `AuthenticationService` bean when the required collaborators are
 present.
@@ -305,7 +313,10 @@ The Spring module assembles Janus from Spring beans.
 
 Required collaborators:
 
-- `IdentityProviderPort` or both provider functions
+- one of:
+  - `IdentityProviderPort`
+  - both provider functions
+  - one built-in identity provider configuration bean such as `KeycloakIdentityProviderConfiguration`
 - `LocalAccountLookupPort` or one supported lookup function
 - `LocalAccountCreationPort` or one creation function
 
@@ -331,6 +342,16 @@ So the practical rule is:
 - `LocalAccountIdentityView` is not a standalone Spring bean Janus looks up, but it is a consumer-implemented projection
   type used by lookup results
 
+For the provider side specifically, consumers have three choices:
+
+- provide a custom `IdentityProviderPort` bean
+- provide both provider functions
+- provide one supported built-in provider configuration bean
+
+Today the built-in provider option is:
+
+- `KeycloakIdentityProviderConfiguration`
+
 ### What Consumers Get
 
 The Spring module gives you an `AuthenticationService` Spring bean.
@@ -340,7 +361,7 @@ and dependency resolution around it.
 
 ### Supported Spring Wiring Styles
 
-Spring supports two styles.
+Spring supports three styles.
 
 #### 1. Explicit Janus port beans
 
@@ -397,22 +418,83 @@ The two string inputs are:
 The returned value still uses `LocalAccountIdentityView`, so consumers need a small implementation of that interface
 somewhere in their application.
 
+#### 3. Built-in provider configuration bean
+
+This is the easiest option when you want Janus to create a supported provider adapter for you.
+
+Today Janus ships a built-in Keycloak adapter in `security.janus.idp.implementation`.
+
+To use it:
+
+- add `security.janus.idp.implementation`
+- provide one `KeycloakIdentityProviderConfiguration` bean
+- still provide your local-account beans
+- send signup/signin commands with `requestedProvider = "keycloak"` unless you configured a different provider alias
+
+Example:
+
+```java
+
+@Configuration
+class JanusConsumerConfiguration
+{
+  @Bean
+  KeycloakIdentityProviderConfiguration keycloakIdentityProviderConfiguration()
+  {
+    return KeycloakIdentityProviderConfiguration.of(
+            "http://localhost:8080",
+            "janus",
+            "janus-app",
+            "janus-admin"
+    );
+  }
+
+  @Bean
+  LocalAccountLookupPort localAccountLookupPort()
+  {
+    return (provider, externalSubject) -> accountRepository
+            .findByProviderAndExternalSubject(provider, externalSubject)
+            .map(AccountIdentityView::new);
+  }
+
+  @Bean
+  LocalAccountCreationPort localAccountCreationPort()
+  {
+    return command -> createLocalAccount(command);
+  }
+}
+```
+
+If you need more than the simplest Keycloak setup, use the full overload and provide the minimal connection details
+Janus
+needs in order to talk to Keycloak:
+
+- server URL
+- realm
+- user client id and optional client secret
+- admin client id and optional client secret
+- optionally a different admin realm
+- optionally custom scope, timeout, and clock
+
 ### Resolution Rules
 
 Spring resolves collaborators in this order:
 
 1. explicit Janus port bean
 2. supported function bean fallback
-3. default, if the dependency is optional
+3. built-in identity provider configuration bean, for the provider collaborator only
+4. default, if the dependency is optional
 
 Important rules:
 
 - explicit Janus port beans win over function fallbacks
+- function fallbacks win over built-in provider configuration
 - if multiple beans match the same collaborator role, startup fails clearly
 - for provider fallback, both signup and signin functions must be present together
 - for lookup fallback, provide exactly one of:
   - `BiFunction<String, String, Optional<LocalAccountIdentityView>>`
   - `Function<LocalAccountLookupQuery, Optional<LocalAccountIdentityView>>`
+- for built-in providers, provide exactly one built-in identity provider configuration bean
 
 ### Spring Boot Usage
 
@@ -452,6 +534,65 @@ class JanusConsumerConfiguration
   }
 }
 ```
+
+### Spring Boot Usage With Built-In Keycloak
+
+If your consumers run Keycloak and want Janus to provide the IdP adapter:
+
+```java
+
+@Configuration
+class JanusConsumerConfiguration
+{
+  @Bean
+  KeycloakIdentityProviderConfiguration keycloakIdentityProviderConfiguration()
+  {
+    return KeycloakIdentityProviderConfiguration.of(
+            "http://localhost:8080",
+            "janus",
+            "keycloak",
+            "janus-app",
+            Optional.of("user-client-secret"),
+            "janus-admin",
+            Optional.of("admin-client-secret"),
+            "master",
+            true,
+            Optional.of("openid profile email"),
+            Duration.ofSeconds(5),
+            Clock.systemUTC()
+    );
+  }
+
+  @Bean
+  LocalAccountLookupPort localAccountLookupPort()
+  {
+    return (provider, externalSubject) -> accountRepository
+            .findByProviderAndExternalSubject(provider, externalSubject)
+            .map(AccountIdentityView::new);
+  }
+
+  @Bean
+  LocalAccountCreationPort localAccountCreationPort()
+  {
+    return command -> createLocalAccount(command);
+  }
+}
+```
+
+In that setup, Janus creates the `IdentityProviderPort` for you from the Keycloak configuration bean.
+
+What consumers still provide:
+
+- `KeycloakIdentityProviderConfiguration`
+- `LocalAccountLookupPort`
+- `LocalAccountCreationPort`
+- optionally `LocalAccountDuplicateCheckPort`
+- a concrete `LocalAccountIdentityView` implementation for lookup results
+
+What consumers get:
+
+- a normal Janus `AuthenticationService` bean
+- no need to write a custom Keycloak `IdentityProviderPort` adapter
 
 Then inject:
 
@@ -553,6 +694,10 @@ Use these core packages from the outside:
 Use this Spring package from the outside:
 
 - `de.gupta.security.janus.spring.configuration`: public Spring entrypoints
+
+Use this built-in IdP package from the outside when you want Janus-provided IdP adapters:
+
+- `de.gupta.security.janus.idp.implementation.keycloak`: Keycloak provider configuration and adapter
 
 You normally do not need the internal application / facade packages in core or the internal assembly packages in spring.
 

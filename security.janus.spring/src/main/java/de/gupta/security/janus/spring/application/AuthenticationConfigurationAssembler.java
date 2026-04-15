@@ -178,13 +178,13 @@ public final class AuthenticationConfigurationAssembler
 			return configuredPort;
 		}
 		if (configuredPort instanceof Unresolved<IdentityProviderPort>(ResolutionFailure failure) &&
-				!"No supported identity provider selection bean found.".equals(failure.message()))
+				!"No built-in identity provider configuration bean found.".equals(failure.message()))
 		{
 			return new Unresolved<>(failure);
 		}
 
 		return ResolutionResult.missing(missingRequiredCollaboratorMessage(IDENTITY_PROVIDER_ROLE,
-				"exactly one IdentityProviderPort bean, both Function<SignupProviderCommand, ProviderSignupResult> and Function<SigninProviderCommand, ProviderSigninResult> beans, or one JanusSupportedIdentityProvider bean with its provider-specific configuration"));
+				"exactly one IdentityProviderPort bean, both Function<SignupProviderCommand, ProviderSignupResult> and Function<SigninProviderCommand, ProviderSigninResult> beans, or one built-in identity provider configuration bean"));
 	}
 
 	private ResolutionResult<LocalAccountLookupPort> resolveLocalAccountLookupPort()

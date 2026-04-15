@@ -1,5 +1,7 @@
 package de.gupta.security.janus.idp.implementation.keycloak;
 
+import de.gupta.security.janus.idp.implementation.BuiltInIdentityProviderConfiguration;
+
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Objects;
@@ -16,7 +18,7 @@ public record KeycloakIdentityProviderConfiguration(String serverUrl,
                                                     boolean signInAfterSignup,
                                                     Optional<String> scope,
                                                     Duration connectTimeout,
-                                                    Clock clock)
+                                                    Clock clock) implements BuiltInIdentityProviderConfiguration
 {
 	public static KeycloakIdentityProviderConfiguration of(final String serverUrl,
 	                                                       final String realm,

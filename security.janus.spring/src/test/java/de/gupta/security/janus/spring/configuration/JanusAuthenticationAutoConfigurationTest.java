@@ -52,8 +52,8 @@ class JanusAuthenticationAutoConfigurationTest
 	}
 
 	@Test
-	@DisplayName("should create AuthenticationService from supported identity provider configuration")
-	void shouldCreateAuthenticationServiceFromSupportedIdentityProviderConfiguration() throws Exception
+	@DisplayName("should create AuthenticationService from built-in identity provider configuration")
+	void shouldCreateAuthenticationServiceFromBuiltInIdentityProviderConfiguration() throws Exception
 	{
 		try (SpringKeycloakStubServer keycloak = new SpringKeycloakStubServer())
 		{
@@ -63,7 +63,6 @@ class JanusAuthenticationAutoConfigurationTest
 			keycloak.stubPasswordGrantSuccess("keycloak-user-1", "ada@example.com");
 
 			contextRunner.withUserConfiguration(LocalPortsConfiguration.class)
-			             .withBean(JanusSupportedIdentityProvider.class, () -> JanusSupportedIdentityProvider.KEYCLOAK)
 			             .withBean(KeycloakIdentityProviderConfiguration.class,
 								 () -> keycloak.configuration(java.time.Clock.systemUTC()))
 			             .run(context ->
@@ -243,16 +242,16 @@ class JanusAuthenticationAutoConfigurationTest
 	}
 
 	@Test
-	@DisplayName("should fail clearly when a supported identity provider is selected without provider configuration")
-	void shouldFailClearlyWhenASupportedIdentityProviderIsSelectedWithoutProviderConfiguration()
+	@DisplayName("should fail clearly when multiple built-in identity provider configuration beans are present")
+	void shouldFailClearlyWhenMultipleBuiltInIdentityProviderConfigurationBeansArePresent()
 	{
-		contextRunner.withUserConfiguration(LocalPortsConfiguration.class)
-		             .withBean(JanusSupportedIdentityProvider.class, () -> JanusSupportedIdentityProvider.KEYCLOAK)
+		contextRunner.withUserConfiguration(LocalPortsConfiguration.class,
+							 AmbiguousBuiltInIdentityProviderConfiguration.class)
 		             .run(context ->
 					 {
 						 assertThat(context).hasFailed();
 						 assertThat(context.getStartupFailure())
-								 .hasMessageContaining("KeycloakIdentityProviderConfiguration");
+								 .hasMessageContaining("BuiltInIdentityProviderConfiguration");
 					 });
 	}
 
@@ -639,6 +638,28 @@ class JanusAuthenticationAutoConfigurationTest
 		LocalAccountCreationPort localAccountCreationPort()
 		{
 			return new SpringTestFixtures.RecordingLocalAccountCreationPort();
+		}
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class AmbiguousBuiltInIdentityProviderConfiguration
+	{
+		@Bean
+		KeycloakIdentityProviderConfiguration firstKeycloakIdentityProviderConfiguration()
+		{
+			return KeycloakIdentityProviderConfiguration.of("http://127.0.0.1:18080",
+					"janus",
+					"janus-app",
+					"janus-admin");
+		}
+
+		@Bean
+		KeycloakIdentityProviderConfiguration secondKeycloakIdentityProviderConfiguration()
+		{
+			return KeycloakIdentityProviderConfiguration.of("http://127.0.0.1:28080",
+					"janus",
+					"janus-app",
+					"janus-admin");
 		}
 	}
 }
