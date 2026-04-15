@@ -71,7 +71,7 @@ class LocalAccountReferenceOfTest
 										 IllegalArgumentException.class, "localAccountId must not be blank"),
 								 new InvalidCase("null external subject optional",
 										 () -> LocalAccountReference.of("local-account-1", null, "local", true),
-										 NullPointerException.class, null),
+										 NullPointerException.class, "externalSubject must not be null"),
 								 new InvalidCase("blank external subject value",
 										 () -> LocalAccountReference.of("local-account-1", Optional.of(" "), "local", true),
 										 IllegalArgumentException.class, "externalSubject may not be blank"),

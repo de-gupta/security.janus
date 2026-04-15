@@ -10,6 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.time.Clock;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -100,7 +101,7 @@ class AuthenticationConfigurationOfDefaultTest
 										 () -> AuthenticationConfiguration.of(context.identityProviderPort,
 												 context.localAccountLookupPort,
 												 context.localAccountCreationPort,
-												 null),
+												 (Clock) null),
 										 "clock must not be null"))
 			             .map(testCase -> Arguments.of(testCase.description(), testCase.invocation(),
 								 testCase.expectedMessage()));

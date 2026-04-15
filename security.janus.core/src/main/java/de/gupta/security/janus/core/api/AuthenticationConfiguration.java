@@ -17,11 +17,54 @@ public record AuthenticationConfiguration(IdentityProviderPort identityProviderP
 {
 	public static AuthenticationConfiguration of(final IdentityProviderPort identityProviderPort,
 	                                             final LocalAccountLookupPort localAccountLookupPort,
+	                                             final LocalAccountCreationPort localAccountCreationPort)
+	{
+		return of(identityProviderPort, localAccountLookupPort, localAccountCreationPort, Clock.systemUTC());
+	}
+
+	public static AuthenticationConfiguration of(final IdentityProviderPort identityProviderPort,
+	                                             final LocalAccountLookupPort localAccountLookupPort,
 	                                             final LocalAccountCreationPort localAccountCreationPort,
 	                                             final Clock clock)
 	{
 		return new AuthenticationConfiguration(identityProviderPort, localAccountLookupPort, localAccountCreationPort,
 				Optional.empty(), AuthenticationPolicy.defaults(), clock);
+	}
+
+	public static AuthenticationConfiguration of(final IdentityProviderPort identityProviderPort,
+	                                             final LocalAccountLookupPort localAccountLookupPort,
+	                                             final LocalAccountCreationPort localAccountCreationPort,
+	                                             final AuthenticationPolicy authenticationPolicy)
+	{
+		return of(identityProviderPort,
+				localAccountLookupPort,
+				localAccountCreationPort,
+				authenticationPolicy,
+				Clock.systemUTC());
+	}
+
+	public static AuthenticationConfiguration of(final IdentityProviderPort identityProviderPort,
+	                                             final LocalAccountLookupPort localAccountLookupPort,
+	                                             final LocalAccountCreationPort localAccountCreationPort,
+	                                             final AuthenticationPolicy authenticationPolicy,
+	                                             final Clock clock)
+	{
+		return new AuthenticationConfiguration(identityProviderPort, localAccountLookupPort, localAccountCreationPort,
+				Optional.empty(), authenticationPolicy, clock);
+	}
+
+	public static AuthenticationConfiguration of(final IdentityProviderPort identityProviderPort,
+	                                             final LocalAccountLookupPort localAccountLookupPort,
+	                                             final LocalAccountCreationPort localAccountCreationPort,
+	                                             final LocalAccountDuplicateCheckPort localAccountDuplicateCheckPort,
+	                                             final AuthenticationPolicy authenticationPolicy)
+	{
+		return of(identityProviderPort,
+				localAccountLookupPort,
+				localAccountCreationPort,
+				localAccountDuplicateCheckPort,
+				authenticationPolicy,
+				Clock.systemUTC());
 	}
 
 	public static AuthenticationConfiguration of(final IdentityProviderPort identityProviderPort,
