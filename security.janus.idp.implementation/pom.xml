@@ -10,6 +10,8 @@
     </parent>
 
     <artifactId>security.janus.idp.implementation</artifactId>
+    <name>${project.artifactId}</name>
+    <description>A library for authentication flow</description>
 
     <properties>
         <jackson.version>2.18.2</jackson.version>

@@ -10,6 +10,8 @@
     </parent>
 
     <artifactId>security.janus.spring</artifactId>
+    <name>${project.artifactId}</name>
+    <description>A library for authentication flow</description>
 
     <properties>
         <spring.boot.version>3.5.13</spring.boot.version>

@@ -10,5 +10,7 @@
     </parent>
 
     <artifactId>security.janus.core</artifactId>
+    <name>${project.artifactId}</name>
+    <description>A library for authentication flow</description>
 
 </project>
