@@ -17,6 +17,7 @@
     <url>https://github.com/de-gupta/security.janus.git</url>
     <modules>
         <module>security.janus.core</module>
+        <module>security.janus.spring</module>
     </modules>
 
     <properties>
