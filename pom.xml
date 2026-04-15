@@ -41,7 +41,7 @@
         <dependency>
             <groupId>io.github.de-gupta</groupId>
             <artifactId>athena</artifactId>
-            <version>0.5.1-SNAPSHOT</version>
+            <version>0.5.1</version>
         </dependency>
 
         <dependency>

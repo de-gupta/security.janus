@@ -1,32 +1,25 @@
 package de.gupta.security.janus.application.service;
 
-import de.gupta.security.janus.api.AuthenticationConfiguration;
+import de.gupta.commons.utility.string.StringSanitizationUtility;
 import de.gupta.security.janus.adapter.local.LocalAccountCreationCommand;
 import de.gupta.security.janus.adapter.local.LocalAccountIdentityView;
 import de.gupta.security.janus.adapter.provider.SigninProviderCommand;
 import de.gupta.security.janus.adapter.provider.SignupProviderCommand;
+import de.gupta.security.janus.api.AuthenticationConfiguration;
 import de.gupta.security.janus.api.command.SigninCommand;
 import de.gupta.security.janus.api.command.SignupCommand;
+import de.gupta.security.janus.api.command.SignupProfileAttributes;
 import de.gupta.security.janus.domain.model.common.LocalAccountReference;
 import de.gupta.security.janus.domain.model.common.ProviderIdentity;
 import de.gupta.security.janus.domain.model.local.LocalAccountCreationFailure;
 import de.gupta.security.janus.domain.model.local.LocalAccountCreationResult;
 import de.gupta.security.janus.domain.model.local.LocalAccountCreationSuccess;
-import de.gupta.security.janus.domain.model.provider.ProviderSigninFailure;
-import de.gupta.security.janus.domain.model.provider.ProviderSigninResult;
-import de.gupta.security.janus.domain.model.provider.ProviderSigninSuccess;
-import de.gupta.security.janus.domain.model.provider.ProviderSignupFailure;
-import de.gupta.security.janus.domain.model.provider.ProviderSignupResult;
-import de.gupta.security.janus.domain.model.provider.ProviderSignupSuccess;
+import de.gupta.security.janus.domain.model.provider.*;
 import de.gupta.security.janus.domain.model.signin.SigninFailure;
 import de.gupta.security.janus.domain.model.signin.SigninFailureReason;
 import de.gupta.security.janus.domain.model.signin.SigninResult;
 import de.gupta.security.janus.domain.model.signin.SigninSuccess;
-import de.gupta.security.janus.domain.model.signup.SignupCompletion;
-import de.gupta.security.janus.domain.model.signup.SignupFailure;
-import de.gupta.security.janus.domain.model.signup.SignupFailureReason;
-import de.gupta.security.janus.domain.model.signup.SignupResult;
-import de.gupta.security.janus.domain.model.signup.SignupSuccess;
+import de.gupta.security.janus.domain.model.signup.*;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -187,24 +180,37 @@ final class InternalAuthenticationServiceImpl implements InternalAuthenticationS
 	private boolean invalidSignupCommand(final SignupCommand command)
 	{
 		return command == null ||
-				command.loginIdentifier() == null ||
-				command.loginIdentifier().isBlank() ||
-				command.rawSecret() == null ||
-				command.rawSecret().isBlank() ||
-				command.requestedProvider() == null ||
-				command.requestedProvider().isBlank() ||
-				command.profileAttributes() == null;
+				invalidRequiredString(command.loginIdentifier()) ||
+				invalidRequiredString(command.rawSecret()) ||
+				invalidRequiredString(command.requestedProvider()) ||
+				invalidProfileAttributes(command.profileAttributes());
 	}
 
 	private boolean invalidSigninCommand(final SigninCommand command)
 	{
 		return command == null ||
-				command.loginIdentifier() == null ||
-				command.loginIdentifier().isBlank() ||
-				command.rawSecret() == null ||
-				command.rawSecret().isBlank() ||
-				command.requestedProvider() == null ||
-				command.requestedProvider().isBlank();
+				invalidRequiredString(command.loginIdentifier()) ||
+				invalidRequiredString(command.rawSecret()) ||
+				invalidRequiredString(command.requestedProvider());
+	}
+
+	private boolean invalidProfileAttributes(final SignupProfileAttributes profileAttributes)
+	{
+		return profileAttributes == null ||
+				invalidOptionalString(profileAttributes.email()) ||
+				invalidOptionalString(profileAttributes.firstName()) ||
+				invalidOptionalString(profileAttributes.lastName()) ||
+				invalidOptionalString(profileAttributes.displayName());
+	}
+
+	private boolean invalidRequiredString(final String value)
+	{
+		return StringSanitizationUtility.isAbsentOrBlank(value);
+	}
+
+	private boolean invalidOptionalString(final Optional<String> value)
+	{
+		return value == null || value.stream().anyMatch(StringSanitizationUtility::isAbsentOrBlank);
 	}
 
 	InternalAuthenticationServiceImpl(final AuthenticationConfiguration configuration)
