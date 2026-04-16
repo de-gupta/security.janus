@@ -1,5 +1,6 @@
 package de.gupta.security.janus.idp.implementation.keycloak;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.gupta.security.janus.core.adapter.provider.SignupProviderCommand;
@@ -350,6 +351,7 @@ final class KeycloakApiClient
 		this.configuration = configuration;
 	}
 
+	@JsonIgnoreProperties(ignoreUnknown = true)
 	private record TokenEndpointResponse(String access_token,
 	                                     Long expires_in,
 	                                     String refresh_token,
@@ -389,6 +391,7 @@ final class KeycloakApiClient
 		}
 	}
 
+	@JsonIgnoreProperties(ignoreUnknown = true)
 	private record TokenErrorResponse(String error, String error_description)
 	{
 		private String errorDescription()
