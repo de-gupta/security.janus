@@ -7,20 +7,24 @@ It is intentionally narrow:
 - no persistence implementation
 - no refresh-token flow
 - no password reset, MFA, logout, or email verification
-- no HTTP controllers or transport mapping
+- no built-in request/response DTOs
+- no generated endpoints or hidden transport wiring
+- no opinionated HTTP error schema
 
 You bring your own local account store and your own identity provider implementation. Janus coordinates the flow and returns rich, typed results.
 
 ## Modules
 
-Janus currently ships as three modules:
+Janus currently ships as four modules:
 
 - `security.janus.core`: framework-agnostic orchestration and public auth models
 - `security.janus.idp.implementation`: built-in IdP adapter implementations such as Keycloak
 - `security.janus.spring`: Spring / Spring Boot wiring on top of the core module
+- `security.janus.spring.web`: optional Spring MVC controller / facade shell on top of the core module
 
 Use the core module directly if you want full manual assembly. Use the Spring module if you want Janus assembled from
-Spring beans.
+Spring beans. Use the Spring Web module if you want Janus-provided abstract controller and facade base classes while
+keeping your own DTOs and mapping policy.
 
 ## Quick Start
 
@@ -73,6 +77,25 @@ You then inject:
 ```java
 private final AuthenticationService authenticationService;
 ```
+
+### Spring Web
+
+Add `security.janus.spring.web` when you want Janus to provide the reusable web shell around
+`AuthenticationService`.
+
+This module provides:
+
+- request-to-command adapter interfaces
+- result-to-web-response adapter interfaces
+- an abstract web facade
+- an abstract Spring MVC controller with method-level `/signup` and `/signin` mappings
+
+Consumers still provide:
+
+- signup/signin request DTOs
+- signup/signin response DTOs
+- concrete adapters
+- one concrete controller with class-level annotations such as `@RestController` and `@RequestMapping("/auth")`
 
 ## Core Module
 
@@ -702,6 +725,196 @@ class JanusConsumerConfiguration
 
 After that, define the same required beans as above and inject `AuthenticationService`.
 
+## Spring Web Module
+
+### What Consumers Provide
+
+The Spring Web module standardizes the shell around `AuthenticationService`, but consumers still own the transport
+surface.
+
+Consumers provide:
+
+- a signup request DTO
+- a signin request DTO
+- a signup response body DTO
+- a signin response body DTO
+- one `SignupRequestToCommandAdapter`
+- one `SigninRequestToCommandAdapter`
+- one `SignupResultToWebResponseAdapter`
+- one `SigninResultToWebResponseAdapter`
+- one concrete controller class with class-level Spring annotations
+
+Consumers can also provide a concrete facade bean extending `AbstractAuthenticationWebFacade`, or instantiate that
+abstract base through their own configuration style.
+
+### What Consumers Get
+
+The Spring Web module gives you:
+
+- `AuthenticationWebResponse<T>` for explicit status/body mapping
+- `AuthenticationWebFacade<...>`
+- `AbstractAuthenticationWebFacade<...>`
+- `AuthenticationController<...>`
+- `AbstractSpringRestAuthenticationController<...>`
+
+Janus does not choose your DTO schema or your HTTP status policy. Your result adapters stay in control of that.
+
+### How To Use It
+
+The intended setup is:
+
+1. inject Janus `AuthenticationService` into a concrete facade extending `AbstractAuthenticationWebFacade`
+2. adapt incoming request DTOs into `SignupCommand` / `SigninCommand`
+3. adapt `SignupResult` / `SigninResult` into `AuthenticationWebResponse<T>`
+4. extend `AbstractSpringRestAuthenticationController` in a concrete `@RestController`
+5. choose your own class-level base path such as `/auth`
+
+Janus standardizes only the method-level endpoint mappings:
+
+- `POST /signup`
+- `POST /signin`
+
+The class-level base path remains consumer-defined.
+
+### Example
+
+```java
+public record SignupRequest(String username, String password, String email)
+{
+}
+
+public record SigninRequest(String username, String password)
+{
+}
+
+public record SignupResponseBody(String code, String localAccountId)
+{
+}
+
+public record SigninResponseBody(String code, String localAccountId)
+{
+}
+
+@Component
+final class SignupRequestAdapter implements SignupRequestToCommandAdapter<SignupRequest>
+{
+  @Override
+  public SignupCommand adapt(final SignupRequest request)
+  {
+    return SignupCommand.of(
+            request.username(),
+            request.password(),
+            SignupProfileAttributes.of(
+                    Optional.of(request.email()),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty()
+            ),
+            "keycloak"
+    );
+  }
+}
+
+@Component
+final class SigninRequestAdapter implements SigninRequestToCommandAdapter<SigninRequest>
+{
+  @Override
+  public SigninCommand adapt(final SigninRequest request)
+  {
+    return SigninCommand.of(request.username(), request.password(), "keycloak");
+  }
+}
+
+@Component
+final class SignupResponseAdapter implements SignupResultToWebResponseAdapter<SignupResponseBody>
+{
+  @Override
+  public AuthenticationWebResponse<SignupResponseBody> adapt(final SignupResult result)
+  {
+    return switch (result)
+    {
+      case SignupSuccess success -> AuthenticationWebResponse.of(
+              HttpStatus.CREATED,
+              new SignupResponseBody("SIGNED_UP", success.localAccount().localAccountId())
+      );
+      case SignupFailure failure -> AuthenticationWebResponse.of(
+              HttpStatus.UNPROCESSABLE_ENTITY,
+              new SignupResponseBody(failure.reason().name(), null)
+      );
+    };
+  }
+}
+
+@Component
+final class SigninResponseAdapter implements SigninResultToWebResponseAdapter<SigninResponseBody>
+{
+  @Override
+  public AuthenticationWebResponse<SigninResponseBody> adapt(final SigninResult result)
+  {
+    return switch (result)
+    {
+      case SigninSuccess success -> AuthenticationWebResponse.of(
+              HttpStatus.OK,
+              new SigninResponseBody("SIGNED_IN",
+                      success.localAccount().map(LocalAccountReference::localAccountId).orElse(null))
+      );
+      case SigninFailure failure -> AuthenticationWebResponse.of(
+              HttpStatus.UNAUTHORIZED,
+              new SigninResponseBody(failure.reason().name(), null)
+      );
+    };
+  }
+}
+
+@Component
+final class AuthenticationWebFacadeImpl
+        extends AbstractAuthenticationWebFacade<SignupRequest, SigninRequest, SignupResponseBody, SigninResponseBody>
+{
+  AuthenticationWebFacadeImpl(
+          final AuthenticationService authenticationService,
+          final SignupRequestToCommandAdapter<SignupRequest> signupRequestAdapter,
+          final SigninRequestToCommandAdapter<SigninRequest> signinRequestAdapter,
+          final SignupResultToWebResponseAdapter<SignupResponseBody> signupResponseAdapter,
+          final SigninResultToWebResponseAdapter<SigninResponseBody> signinResponseAdapter)
+  {
+    super(authenticationService,
+            signupRequestAdapter,
+            signinRequestAdapter,
+            signupResponseAdapter,
+            signinResponseAdapter);
+  }
+}
+
+@RestController
+@RequestMapping("/auth")
+final class AuthenticationControllerImpl
+        extends AbstractSpringRestAuthenticationController<
+        SignupRequest,
+        SigninRequest,
+        SignupResponseBody,
+        SigninResponseBody>
+{
+  AuthenticationControllerImpl(
+          final AuthenticationWebFacade<SignupRequest, SigninRequest, SignupResponseBody, SigninResponseBody> facade)
+  {
+    super(facade);
+  }
+}
+```
+
+What Janus provides in that setup:
+
+- the reusable facade orchestration around `AuthenticationService`
+- the reusable `ResponseEntity` conversion
+- the standard method-level `/signup` and `/signin` mappings
+
+What consumers still provide:
+
+- DTOs
+- request mapping
+- result/status mapping
+- class-level controller annotations and base path
+
 ### Spring Public Entry Points
 
 The Spring module intentionally exposes only a small public surface:
@@ -710,6 +923,12 @@ The Spring module intentionally exposes only a small public surface:
 - `de.gupta.security.janus.spring.configuration.JanusAuthenticationAutoConfiguration`
 
 Everything else in the Spring module is internal support for bean resolution and assembly.
+
+The Spring Web module intentionally exposes only a small public surface:
+
+- `de.gupta.security.janus.spring.web.adapter`
+- `de.gupta.security.janus.spring.web.api`
+- `de.gupta.security.janus.spring.web.facade`
 
 ## Package Guide
 
@@ -729,6 +948,12 @@ Use this Spring package from the outside:
 
 - `de.gupta.security.janus.spring.configuration`: public Spring entrypoints
 
+Use these Spring Web packages from the outside:
+
+- `de.gupta.security.janus.spring.web.adapter`: request/result adapter contracts
+- `de.gupta.security.janus.spring.web.api`: abstract controller contract and base controller
+- `de.gupta.security.janus.spring.web.facade`: web facade contract, base facade, and response wrapper
+
 Use this built-in IdP package from the outside when you want Janus-provided IdP adapters:
 
 - `de.gupta.security.janus.idp.implementation.keycloak`: Keycloak provider configuration and adapter
@@ -742,7 +967,8 @@ Janus does not assume:
 - a specific persistence model
 - a specific provider
 - a specific token format
-- a specific HTTP framework
+- a specific DTO schema
+- a generated controller implementation
 - that signin must always return one JWT string
 
-The core module stays framework-agnostic. The Spring module is optional wiring on top of that core.
+The core module stays framework-agnostic. The Spring and Spring Web modules are optional layers on top of that core.
